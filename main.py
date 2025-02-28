@@ -1,33 +1,29 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 import chess
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# Initialize the chess board
 board = chess.Board()
 
-@app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request):
+@app.get("/")
+async def root(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, "fen": board.fen()})
 
 @app.post("/move")
-async def make_move(from_square: str, to_square: str):
-    move = chess.Move.from_uci(from_square + to_square)
+async def make_move(request: Request):
+    data = await request.json()
+    move = chess.Move.from_uci(data['move'])
     if move in board.legal_moves:
         board.push(move)
-        return {"success": True, "fen": board.fen()}
-    return {"success": False, "message": "Illegal move"}
+        return JSONResponse(content={"fen": board.fen(), "status": "success"})
+    return JSONResponse(content={"status": "error", "message": "Illegal move"})
 
 @app.get("/reset")
 async def reset_game():
     global board
     board = chess.Board()
-    return {"success": True, "fen": board.fen()}
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    return JSONResponse(content={"fen": board.fen(), "status": "success"})
